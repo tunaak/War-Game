@@ -1,0 +1,288 @@
+from functools import wraps
+
+
+green_side = '\033[32m'
+red_side = '\033[31m'
+reset = '\033[0m'
+
+
+# ################################################################################################# #
+# These are the fighter classes, Their instances can't do stuff by their selves without a commander #
+# ################################################################################################# #
+class FighterGroup:
+    # Lists of group titles and group amounts:
+    fighter_group_titles = {}
+    amount = len(fighter_group_titles) + 1
+
+    # Initializer of a basic FighterGroup:
+    def __init__(self, soldier_amount, side, title="Group" + str(amount)):
+        self.soldier_amount, self.title, self.side = soldier_amount, title, side
+        self.GMP = 0
+        print(f"Created a new garrison called {self.title}")
+        FighterGroup.fighter_group_titles[self.title] = self
+
+    # Colored title of the group:
+    @property
+    def bannered_title(self):
+        return self.side + self.title + reset
+
+    # Hitting a regiment once:
+    def hit(self, defender):
+        if self.soldier_amount > 0 and self.title != defender.title and \
+                defender.soldier_amount > 0 and self.side != defender.side:
+
+            # System message:
+            print(f"- {self.title} hit {defender.title} -")
+
+            # Loss amount:
+            defender_loss = round(self.soldier_amount * .2)
+            self_loss = round(defender.soldier_amount * .2)
+
+            # This prevents the soldier_amount variable from having a negative value:
+            if self_loss > self.soldier_amount:
+                self_loss = self.soldier_amount
+            if defender_loss > defender.soldier_amount:
+                defender_loss = defender.soldier_amount
+
+            # Value changing:
+            self.soldier_amount -= self_loss
+            defender.soldier_amount -= defender_loss
+            self.GMP += defender_loss * 3
+            defender.GMP += self_loss * 3
+
+            # System message:
+            print(f"- {self.title} lost {self_loss} fighters -")
+            print(f"- {defender.title} lost {defender_loss} fighters -")
+
+    # Attacking a regiment until one of the regiments(attacker, defender) is dead:
+    def fully_attack(self, defender):
+
+        def death_message(group):
+            print(f"- {group.title} lost all their soldiers -")
+
+        # Calculating the gained gmp amount:
+        def gmp_gain():
+            defender.GMP += self_loss * 3
+            self.GMP += defender_loss * 3
+
+        if self.soldier_amount > 0 and self.title != defender.title and defender.soldier_amount > 0 and self.side != \
+                defender.side:
+
+            # System message:
+            print(f"- {self.title} are fully attacking {defender.title} -")
+
+            # Initializing variables for lost amount:
+            defender_loss, self_loss = 0, 0
+
+            # Loop for hitting until dead:
+            dead = False
+            while not dead:
+
+                # Loss amount every loop:
+                defender_loss += round(self.soldier_amount * .2)
+                self_loss += round(defender.soldier_amount * .2)
+
+                # If a regiment kills easily
+                if defender_loss * 3 < self_loss:
+                    print(f"{self.title} destroyed {defender.title}!")
+                    death_message(defender)
+
+                if self_loss * 3 < defender_loss:
+                    print(f"{defender.title} destroyed {self.title}!")
+                    death_message(self)
+
+                # If both of them die at the same loop:
+                if defender_loss > defender.soldier_amount and self_loss > self.soldier_amount:
+                    self_loss, defender_loss = self.soldier_amount, defender.soldier_amount
+                    self.soldier_amount -= self_loss
+                    defender.soldier_amount -= defender_loss
+                    death_message(defender)
+                    death_message(self)
+                    print(f"{self.title} and {defender.title} both killed each other...")
+                    gmp_gain()
+                    dead = True
+
+                # Deaths:
+                elif defender_loss > defender.soldier_amount:
+                    defender_loss = defender.soldier_amount
+                    defender.soldier_amount -= defender_loss
+                    self.soldier_amount -= self_loss
+                    death_message(defender)
+                    print(f"{self.title} won the fight...")
+                    gmp_gain()
+                    dead = True
+
+                elif self_loss > self.soldier_amount:
+                    self_loss = self.soldier_amount
+                    defender.soldier_amount -= defender_loss
+                    self.soldier_amount -= self_loss
+                    death_message(self)
+                    print(f"{defender.title} won the fight...")
+                    gmp_gain()
+                    dead = True
+
+    def train_fighters(self, amount):
+        if self.GMP >= 0:
+            print(self.bannered_title + ':')
+            if 5 * amount <= self.GMP:
+                # System message:
+                print(f"- Soldiers are being trained for {self.title} -")
+                self.GMP -= 5 * amount
+                self.soldier_amount += amount
+                print(f"- {self.title} trained {amount} soldiers -")
+
+    # Will be used when taking inputs from the user:
+    @classmethod
+    def find_by_title(cls, title):
+        try:
+            return cls.fighter_group_titles[title]
+        except KeyError:
+            print("No group with title %s" % str(title))
+
+
+class UserControlledGroup(FighterGroup):
+
+    # Hitting once:
+    def hit(self, defender):
+        self.attack_check(defender)
+        if self.soldier_amount > 0 and self.title != defender.title and defender.soldier_amount > 0 and self.side != \
+                defender.side:
+
+            # UserControlledGroup message:
+            print(f"{self.title}:\nWe are attacking {defender.title}...")
+        super().hit(defender)
+
+    # Attacking a regiment until one of the regiments(attacker, defender) is dead:
+    def fully_attack(self, defender):
+        self.attack_check(defender)
+        if self.soldier_amount > 0 and self.title != defender.title and defender.soldier_amount > 0 and self.side != \
+                defender.side:
+
+            # UserControlledGroup message:
+            print(f"{self.title}:\nWe are fully attacking {defender.title}...")
+        super().fully_attack(defender)
+
+    # Checking if the regiment can attack:
+    def attack_check(self, defender):
+        if self.bannered_title == defender.title:
+            print("We can't attack ourselves...")
+        elif self.side == defender.side:
+            print("We can't attack our side...")
+        elif self.soldier_amount <= 0:
+            print("We don't have any soldiers...")
+        elif defender.soldier_amount <= 0:
+            print("They don't have any soldiers...")
+
+    # Training fighters in exchange of GMPs:
+    def train_fighters(self, amount):
+        if self.GMP >= 0:
+            print(self.bannered_title + ':')
+            if 5 * amount <= self.GMP:
+                print("Training soldiers...")
+
+            elif 5 * amount > self.GMP:
+                print("We don't have enough GMPs commander.")
+        super().train_fighters(amount)
+
+    # Printing the info for self:
+    def info(self):
+        print(f"""{self.title}:
+{self.side + "|___" + reset} Fighter Amount: {self.soldier_amount}
+   {self.side + "|___" + reset} GMP: {self.GMP}""")
+        pass
+
+
+# ############################################################################################## #
+# These are the commanding classes, UserControlledGroup instances can't do stuff by their selves #
+# ############################################################################################## #
+class BasicCommander:
+
+    def __init__(self, group, commander_name):
+        self.side = group.side
+        self.group, self.commander_name = group, commander_name
+        print(
+            f"Commander {self.side + self.commander_name + reset} now commands fighter group {group.title}...")
+
+    @property
+    def bannered_title(self):
+        return self.side + self.commander_name + reset
+
+    @property
+    def commands(self):
+        return {1: ["Command to hit", self.command_to_hit], 2: ["Report self info", self.report_info]}
+
+    # Commands with variables
+    def command_to_hit(self, defender):
+        self.group.hit(defender)
+
+    # Commands with no variables
+    def report_info(self):
+        self.group.info()
+
+    def choose_command(self):
+        print(f"{self.title}:")
+        print(f"Please choose a command for {self.group.title}: ")
+        for i in self.commands:
+            print(f"{i}) {self.commands[i][0]}")
+        choice = int(input("Please input by the number: "))
+        for _ in self.commands:
+
+            # Statement which only contains methods with no variables:
+            if choice == 2:
+                self.report_info()
+                break
+
+            # Statement which only contains methods with one title variable:
+            elif choice == 3 or choice == 1:
+                group_title = input("Group title: ")
+                group = FighterGroup.find_by_title(group_title)
+                self.commands[choice][1](group)
+                break
+
+            # Statement which only contains methods with one soldier amount variable:
+            elif choice == 4:
+                soldier_amount = int(input("Amount: "))
+                self.commands[choice][1](soldier_amount)
+                break
+
+
+class MediumCommander(BasicCommander):
+
+    @property
+    def commands(self):
+        return {1: ["Command to hit", self.command_to_hit], 2: ["Report self info", self.report_info],
+                3: ["Command to fully attack", self.command_to_fully_attack],
+                4: ["Command to train fighters", self.command_to_train_fighters]}
+
+    # Commands with variables
+    def command_to_fully_attack(self, defender):
+        self.group.fully_attack(defender)
+
+    def command_to_train_fighters(self, amount):
+        self.group.train_fighters(amount)
+
+
+# ###################################################################################### #
+# This place is the experimenting part which will run only if this file is the main file #
+# ###################################################################################### #
+def main():
+
+    def first_fight():
+        group01 = FighterGroup(100, red_side, "Chinese Crossbows")
+        user_group = UserControlledGroup(100, green_side, "Mongolian Short Sword Cavalries")
+        green_side_commander = BasicCommander(user_group, "Genghis Khan")
+        green_side_commander.choose_command()
+        user_group01 = UserControlledGroup(1000, green_side, "Turkish Cavalry Archers")
+        mighty_commander = MediumCommander(user_group01, "Selahaddin Eyyübi")
+        mighty_commander.choose_command()
+        green_side_commander.report_info()
+        mighty_commander.report_info()
+
+    def test():
+        group01 = FighterGroup(100, red_side, "DuNkoffs")
+
+    test()
+
+
+if __name__ == "__main__":
+    main()
